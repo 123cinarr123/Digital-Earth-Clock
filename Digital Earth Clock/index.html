@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital World Clock</title>
+  
+  <!-- Three.js & GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #030712;
+      color: #fff;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      cursor: grab;
+    }
+
+    #webgl-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Transition Overlay */
+    #fade-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 100;
+      transition: opacity 0.8s ease-in-out;
+    }
+
+    #fade-overlay.active {
+      opacity: 1;
+    }
+
+    /* UI HUD Elements */
+    .hud-container {
+      position: relative;
+      z-index: 10;
+      pointer-events: none;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 380px;
+    }
+
+    .hud-container * {
+      pointer-events: auto;
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .header-card h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .header-card p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    .controls-card label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      color: #cbd5e1;
+    }
+
+    .controls-card select {
+      width: 100%;
+      padding: 12px;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .info-card.hidden {
+      display: none;
+    }
+
+    .info-card h2 {
+      font-size: 1.3rem;
+      color: #f8fafc;
+      margin-bottom: 8px;
+    }
+
+    .time-display {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #38bdf8;
+      font-family: monospace;
+      letter-spacing: 1px;
+      margin: 12px 0;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .details p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-top: 6px;
+    }
+
+    .details strong {
+      color: #e2e8f0;
+    }
+
+    .esc-hint {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 12px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid #38bdf8;
+      border-radius: 6px;
+      color: #38bdf8;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .back-btn {
+      margin-top: 12px;
+      width: 100%;
+      padding: 10px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .back-btn:hover {
+      background: #2563eb;
+    }
+
+    .globe-hint {
+      position: fixed;
+      right: 24px;
+      bottom: 20px;
+      z-index: 10;
+      color: rgba(203, 213, 225, 0.72);
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-align: right;
+      pointer-events: none;
+    }
+
+    @media (max-width: 520px) {
+      .hud-container {
+        padding: 14px;
+        gap: 10px;
+        max-width: 100%;
+      }
+
+      .glass-card {
+        padding: 16px;
+      }
+
+      .time-display {
+        font-size: 2rem;
+      }
+
+      .globe-hint {
+        right: 14px;
+        bottom: 12px;
+        font-size: 0.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Transition Overlay -->
+  <div id="fade-overlay"></div>
+
+  <!-- Three.js Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- HUD Interface -->
+  <div class="hud-container">
+    <header class="glass-card header-card">
+      <h1>🌍 DIGITAL WORLD CLOCK</h1>
+      <p>Explore a textured 3D Earth and check local time anywhere.</p>
+    </header>
+
+    <div class="glass-card controls-card">
+      <label for="country-select">Target Country</label>
+      <select id="country-select">
+        <option value="" disabled selected>Select a location</option>
+      </select>
+    </div>
+
+    <div id="info-card" class="glass-card info-card hidden">
+      <h2 id="location-name">Location</h2>
+      <div id="local-time" class="time-display">00:00:00</div>
+      <div class="details">
+        <p><strong>Timezone:</strong> <span id="timezone-text">-</span></p>
+        <p><strong>Coordinates:</strong> <span id="coords-text">-</span></p>
+        <p><strong>Theme:</strong> <span id="theme-text">-</span></p>
+        <p><strong>Architecture:</strong> <span id="architecture-text">-</span></p>
+      </div>
+      <div class="esc-hint">⌨️ Press <strong>ESC</strong> to return to orbit</div>
+      <button class="back-btn" id="back-btn">Return to Globe Orbit</button>
+    </div>
+  </div>
+  <div class="globe-hint">DRAG TO ROTATE</div>
+
+  <script>
+    // Global Country Database with Custom Atmospheric Themes
+    const locations = [
+      { name: "Turkey (Istanbul)", lat: 41.0082, lng: 28.9784, timezone: "Europe/Istanbul", themeName: "Ottoman Sunburst", architecture: "Ottoman domes and minarets", cityStyle: "istanbul", bg: 0x2d1206, light: 0xf97316, desk: 0x451a03 },
+      { name: "Turkey (Ankara)", lat: 39.9334, lng: 32.8597, timezone: "Europe/Istanbul", themeName: "Anatolian Warmth", architecture: "Modern civic towers", cityStyle: "ankara", bg: 0x3b1106, light: 0xfb923c, desk: 0x581c87 },
+      { name: "Japan (Tokyo)", lat: 35.6762, lng: 139.6503, timezone: "Asia/Tokyo", themeName: "Neo-Tokyo Cyberpunk", architecture: "Pagodas and neon high-rises", cityStyle: "tokyo", bg: 0x090919, light: 0x06b6d4, desk: 0x0f172a },
+      { name: "United Kingdom (London)", lat: 51.5074, lng: -0.1278, timezone: "Europe/London", themeName: "Westminster Mist", architecture: "Gothic clock tower and townhouses", cityStyle: "london", bg: 0x0f172a, light: 0x64748b, desk: 0x334155 },
+      { name: "United States (New York)", lat: 40.7128, lng: -74.0060, timezone: "America/New_York", themeName: "Manhattan Electric", architecture: "Manhattan skyscrapers", cityStyle: "new-york", bg: 0x1e1b4b, light: 0x818cf8, desk: 0x1e293b },
+      { name: "Australia (Sydney)", lat: -33.8688, lng: 151.2093, timezone: "Australia/Sydney", themeName: "Outback Sunset", architecture: "Harbour sails and modern towers", cityStyle: "sydney", bg: 0x451a03, light: 0xf97316, desk: 0x78350f },
+      { name: "Brazil (Rio de Janeiro)", lat: -22.9068, lng: -43.1729, timezone: "America/Sao_Paulo", themeName: "Tropical Jungle", architecture: "Colorful hillside homes", cityStyle: "rio", bg: 0x064e3b, light: 0x10b981, desk: 0x065f46 },
+      { name: "Egypt (Cairo)", lat: 30.0444, lng: 31.2357, timezone: "Africa/Cairo", themeName: "Sahara Gold", architecture: "Pyramids and mosque minarets", cityStyle: "cairo", bg: 0x451a03, light: 0xeab308, desk: 0x78350f },
+      { name: "France (Paris)", lat: 48.8566, lng: 2.3522, timezone: "Europe/Paris", themeName: "Parisian Elegance", architecture: "Eiffel Tower and mansard roofs", cityStyle: "paris", bg: 0x312e81, light: 0xf472b6, desk: 0x475569 },
+      { name: "Germany (Berlin)", lat: 52.5200, lng: 13.4050, timezone: "Europe/Berlin", themeName: "Industrial Modern", architecture: "Modern blocks and historic spires", cityStyle: "berlin", bg: 0x18181b, light: 0x38bdf8, desk: 0x27272a }
+    ];
+
+    let scene, camera, renderer;
+    let globeGroup, cityGroup, cloudMesh, starField;
+    let deskMesh, ambientLight, dirLight, architectureGroup;
+    let clockTextCanvas, clockTexture, clockMesh;
+    
+    let currentMode = 'GLOBE'; // 'GLOBE' | 'WALKING' | 'LOCKED'
+    let activeInterval = null;
+
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let mouseLook = { x: 0, y: 0 };
+    const GLOBE_RADIUS = 80;
+    const CITY_CAMERA_X = -10;
+    const CITY_CAMERA_Z = 105;
+
+    function loadEarthTexture(path, isColorMap = false) {
+      const texture = new THREE.TextureLoader().load(path, undefined, undefined, (error) => {
+        console.error(`Unable to load Earth texture: ${path}`, error);
+      });
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      if (isColorMap) texture.encoding = THREE.sRGBEncoding;
+      return texture;
+    }
+
+    function createStarField() {
+      const positions = [];
+      let seed = 2026;
+      const random = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+      };
+
+      for (let i = 0; i < 1800; i++) {
+        const y = random() * 2 - 1;
+        const angle = random() * Math.PI * 2;
+        const radius = Math.sqrt(1 - y * y) * 850;
+        positions.push(Math.cos(angle) * radius, y * 850, Math.sin(angle) * radius);
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      const material = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 1.5,
+        sizeAttenuation: false,
+        transparent: true,
+        opacity: 0.8
+      });
+      starField = new THREE.Points(geometry, material);
+      scene.add(starField);
+    }
+
+    // Dynamic LED Clock Screen Texture Generator
+    function createClockCanvasTexture() {
+      clockTextCanvas = document.createElement('canvas');
+      clockTextCanvas.width = 512;
+      clockTextCanvas.height = 256;
+      clockTexture = new THREE.CanvasTexture(clockTextCanvas);
+      updateClockDisplay("00:00:00");
+      return clockTexture;
+    }
+
+    function updateClockDisplay(timeStr) {
+      if (!clockTextCanvas) return;
+      const ctx = clockTextCanvas.getContext('2d');
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, clockTextCanvas.width, clockTextCanvas.height);
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(10, 10, clockTextCanvas.width - 20, clockTextCanvas.height - 20);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 72px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 15;
+      ctx.fillText(timeStr, clockTextCanvas.width / 2, clockTextCanvas.height / 2);
+
+      if (clockTexture) clockTexture.needsUpdate = true;
+    }
+
+    function addCityBox(parent, x, y, z, width, height, depth, material) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+      mesh.position.set(x, y + height / 2, z);
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function addCityWindows(parent, x, baseY, z, width, height, material, columns = 3, rows = 4) {
+      const windowWidth = Math.min(1.1, width / (columns * 2.5));
+      const windowHeight = 1.15;
+      const spacingX = width / (columns + 1);
+      const spacingY = height / (rows + 1);
+      const geometry = new THREE.PlaneGeometry(windowWidth, windowHeight);
+
+      for (let row = 1; row <= rows; row++) {
+        for (let column = 1; column <= columns; column++) {
+          const windowMesh = new THREE.Mesh(geometry, material);
+          windowMesh.position.set(
+            x - width / 2 + spacingX * column,
+            baseY + spacingY * row,
+            z
+          );
+          parent.add(windowMesh);
+        }
+      }
+    }
+
+    function addCityBlock(parent, x, baseY, z, width, height, depth, wallMaterial, windowMaterial, columns = 3) {
+      addCityBox(parent, x, baseY, z, width, height, depth, wallMaterial);
+      addCityWindows(parent, x, baseY, z + depth / 2 + 0.05, width, height, windowMaterial, columns, Math.max(2, Math.floor(height / 5)));
+    }
+
+    function addMinaret(parent, x, baseY, z, height, material) {
+      const shaftHeight = height * 0.78;
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.55, 0.8, shaftHeight, 8),
+        material
+      );
+      shaft.position.set(x, baseY + shaftHeight / 2, z);
+      parent.add(shaft);
+
+      const balcony = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 0.9, 0.7, 8), material);
+      balcony.position.set(x, baseY + shaftHeight * 0.72, z);
+      parent.add(balcony);
+
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.8, height * 0.22, 8), material);
+      tip.position.set(x, baseY + shaftHeight + height * 0.11, z);
+      parent.add(tip);
+    }
+
+    function addDome(parent, x, baseY, z, radius, material) {
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+        material
+      );
+      dome.position.set(x, baseY, z);
+      parent.add(dome);
+    }
+
+    function addPyramid(parent, x, baseY, z, width, height, material) {
+      const pyramid = new THREE.Mesh(new THREE.ConeGeometry(width * 0.72, height, 4), material);
+      pyramid.rotation.y = Math.PI / 4;
+      pyramid.position.set(x, baseY + height / 2, z);
+      parent.add(pyramid);
+    }
+
+    function addPagoda(parent, x, baseY, z, material) {
+      const levels = [
+        { y: 0, width: 13, height: 7 },
+        { y: 7, width: 10, height: 6 },
+        { y: 13, width: 7, height: 5 }
+      ];
+
+      levels.forEach((level) => {
+        addCityBox(parent, x, baseY + level.y, z, level.width * 0.72, level.height, 7, material);
+        const roof = new THREE.Mesh(
+          new THREE.ConeGeometry(level.width * 0.72, 3.2, 4),
+          material
+        );
+        roof.rotation.y = Math.PI / 4;
+        roof.position.set(x, baseY + level.y + level.height + 1.4, z);
+        parent.add(roof);
+      });
+
+      const spire = new THREE.Mesh(new THREE.ConeGeometry(1.1, 8, 8), material);
+      spire.position.set(x, baseY + 27, z);
+      parent.add(spire);
+    }
+
+    function addEiffelTower(parent, x, baseY, z, material) {
+      const levels = [
+        { y: 0, width: 13 },
+        { y: 11, width: 8 },
+        { y: 22, width: 4.2 },
+        { y: 32, width: 1.5 }
+      ];
+
+      for (let i = 0; i < levels.length - 1; i++) {
+        const lower = levels[i];
+        const upper = levels[i + 1];
+        const beamLength = Math.hypot((lower.width - upper.width) / 2, upper.y - lower.y);
+        [-1, 1].forEach((side) => {
+          const beam = new THREE.Mesh(new THREE.BoxGeometry(0.8, beamLength, 0.8), material);
+          beam.position.set(
+            x + side * (lower.width + upper.width) / 4,
+            baseY + (lower.y + upper.y) / 2,
+            z
+          );
+          beam.rotation.z = side * Math.atan2((lower.width - upper.width) / 2, upper.y - lower.y);
+          parent.add(beam);
+        });
+        if (i < levels.length - 2) {
+          addCityBox(parent, x, baseY + lower.y, z, lower.width, 1, 1, material);
+        }
+      }
+
+      const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 7, 6), material);
+      antenna.position.set(x, baseY + 35.5, z);
+      parent.add(antenna);
+    }
+
+    function clearCityArchitecture() {
+      architectureGroup.traverse((object) => {
+        if (!object.isMesh) return;
+        object.geometry.dispose();
+        if (Array.isArray(object.material)) {
+          object.material.forEach((material) => material.dispose());
+        } else {
+          object.material.dispose();
+        }
+      });
+      while (architectureGroup.children.length) {
+        architectureGroup.remove(architectureGroup.children[0]);
+      }
+    }
+
+    function buildCityArchitecture(loc) {
+      clearCityArchitecture();
+
+      const baseY = -16;
+      const wall = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.82 });
+      const accent = new THREE.MeshStandardMaterial({ color: loc.light, roughness: 0.62, metalness: 0.12 });
+      const windows = new THREE.MeshBasicMaterial({ color: loc.light });
+      const paleStone = new THREE.MeshStandardMaterial({ color: 0xd6c6a5, roughness: 0.9 });
+      const paleWindows = new THREE.MeshBasicMaterial({ color: 0xffd98a });
+      const whiteStone = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.78 });
+
+      if (loc.cityStyle === "istanbul") {
+        addCityBlock(architectureGroup, -26, baseY, -42, 26, 13, 10, paleStone, paleWindows, 4);
+        addDome(architectureGroup, -26, baseY + 13, -42, 8, accent);
+        addMinaret(architectureGroup, -37, baseY, -39, 29, paleStone);
+        addMinaret(architectureGroup, -15, baseY, -39, 25, paleStone);
+        addCityBlock(architectureGroup, 20, baseY, -48, 20, 19, 12, wall, windows, 4);
+        addDome(architectureGroup, 20, baseY + 19, -48, 6, accent);
+        addMinaret(architectureGroup, 31, baseY, -45, 28, paleStone);
+      } else if (loc.cityStyle === "ankara") {
+        addCityBlock(architectureGroup, -28, baseY, -45, 20, 31, 12, wall, windows, 4);
+        addCityBox(architectureGroup, -28, baseY + 31, -45, 15, 2, 12, accent);
+        addCityBlock(architectureGroup, 0, baseY, -48, 18, 22, 12, paleStone, paleWindows, 4);
+        addCityBox(architectureGroup, 0, baseY + 22, -48, 14, 3, 10, accent);
+        addCityBlock(architectureGroup, 27, baseY, -42, 17, 35, 12, wall, windows, 4);
+        addCityBox(architectureGroup, 27, baseY + 35, -42, 9, 3, 8, accent);
+      } else if (loc.cityStyle === "tokyo") {
+        addPagoda(architectureGroup, -26, baseY, -47, paleStone);
+        addCityBlock(architectureGroup, 1, baseY, -47, 15, 37, 10, wall, windows, 4);
+        addCityBox(architectureGroup, 1, baseY + 37, -47, 10, 4, 8, accent);
+        addCityBlock(architectureGroup, 26, baseY, -42, 18, 29, 11, wall, windows, 4);
+        addCityBox(architectureGroup, 26, baseY + 29, -42, 9, 6, 8, accent);
+      } else if (loc.cityStyle === "london") {
+        addCityBlock(architectureGroup, -27, baseY, -43, 21, 17, 12, paleStone, paleWindows, 4);
+        addCityBox(architectureGroup, -27, baseY + 17, -43, 14, 3, 10, accent);
+        addCityBlock(architectureGroup, 0, baseY, -48, 12, 38, 12, paleStone, paleWindows, 3);
+        addCityBox(architectureGroup, 0, baseY + 38, -48, 10, 6, 10, accent);
+        addCityBox(architectureGroup, 0, baseY + 44, -48, 1.8, 7, 1.8, paleStone);
+        addCityBlock(architectureGroup, 25, baseY, -43, 22, 18, 12, paleStone, paleWindows, 4);
+        addCityBox(architectureGroup, 25, baseY + 18, -43, 17, 3, 10, accent);
+      } else if (loc.cityStyle === "new-york") {
+        addCityBlock(architectureGroup, -31, baseY, -44, 15, 38, 12, wall, windows, 4);
+        addCityBox(architectureGroup, -31, baseY + 38, -44, 10, 7, 9, accent);
+        addCityBlock(architectureGroup, -9, baseY, -49, 17, 29, 12, wall, windows, 4);
+        addCityBox(architectureGroup, -9, baseY + 29, -49, 11, 6, 9, accent);
+        addCityBlock(architectureGroup, 15, baseY, -47, 17, 43, 12, wall, windows, 4);
+        addCityBox(architectureGroup, 15, baseY + 43, -47, 8, 6, 8, accent);
+        addCityBlock(architectureGroup, 36, baseY, -42, 13, 33, 11, wall, windows, 3);
+      } else if (loc.cityStyle === "sydney") {
+        addCityBlock(architectureGroup, -30, baseY, -45, 18, 33, 12, wall, windows, 4);
+        addCityBlock(architectureGroup, 31, baseY, -43, 19, 28, 12, wall, windows, 4);
+        [-17, -7, 3].forEach((offset, index) => {
+          const sail = new THREE.Mesh(
+            new THREE.ConeGeometry(8, 17 + index * 2, 16, 1, true, 0, Math.PI),
+            whiteStone
+          );
+          sail.position.set(offset, baseY + 9, -49);
+          sail.rotation.z = -0.4 + index * 0.16;
+          sail.rotation.y = Math.PI / 2;
+          architectureGroup.add(sail);
+        });
+      } else if (loc.cityStyle === "rio") {
+        const hillsideHomes = [
+          [-34, 10, 0xf59e0b], [-23, 16, 0xf97316], [-12, 12, 0x22c55e],
+          [0, 20, 0xf43f5e], [13, 14, 0xfacc15], [25, 19, 0x38bdf8], [36, 11, 0xa78bfa]
+        ];
+        hillsideHomes.forEach(([x, height, color], index) => {
+          const home = new THREE.MeshStandardMaterial({ color, roughness: 0.86 });
+          addCityBlock(architectureGroup, x, baseY + (index % 2) * 4, -44 - (index % 3) * 2, 10, height, 9, home, paleWindows, 2);
+          const roof = new THREE.Mesh(new THREE.ConeGeometry(7, 5, 4), accent);
+          roof.position.set(x, baseY + (index % 2) * 4 + height + 2.5, -44 - (index % 3) * 2);
+          roof.rotation.y = Math.PI / 4;
+          architectureGroup.add(roof);
+        });
+      } else if (loc.cityStyle === "cairo") {
+        addPyramid(architectureGroup, -24, baseY, -47, 24, 31, paleStone);
+        addPyramid(architectureGroup, -1, baseY, -51, 18, 24, paleStone);
+        addPyramid(architectureGroup, 17, baseY, -46, 14, 19, paleStone);
+        addCityBlock(architectureGroup, 35, baseY, -42, 17, 15, 11, wall, paleWindows, 3);
+        addDome(architectureGroup, 35, baseY + 15, -42, 5.5, accent);
+        addMinaret(architectureGroup, 25, baseY, -39, 29, paleStone);
+      } else if (loc.cityStyle === "paris") {
+        addCityBlock(architectureGroup, -30, baseY, -45, 19, 17, 12, paleStone, paleWindows, 4);
+        addCityBox(architectureGroup, -30, baseY + 17, -45, 20, 2, 13, accent);
+        addCityBlock(architectureGroup, 31, baseY, -44, 20, 19, 12, paleStone, paleWindows, 4);
+        addCityBox(architectureGroup, 31, baseY + 19, -44, 21, 2, 13, accent);
+        addEiffelTower(architectureGroup, 0, baseY, -50, accent);
+      } else if (loc.cityStyle === "berlin") {
+        addCityBlock(architectureGroup, -30, baseY, -44, 20, 26, 12, wall, windows, 4);
+        addCityBox(architectureGroup, -30, baseY + 26, -44, 14, 3, 10, accent);
+        addCityBlock(architectureGroup, 28, baseY, -44, 20, 31, 12, wall, windows, 4);
+        addCityBox(architectureGroup, 28, baseY + 31, -44, 13, 3, 10, accent);
+        addCityBlock(architectureGroup, 0, baseY, -48, 18, 16, 12, paleStone, paleWindows, 4);
+        [-6, 0, 6].forEach((offset) => {
+          const column = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 12, 8), whiteStone);
+          column.position.set(offset, baseY + 6, -40);
+          architectureGroup.add(column);
+        });
+        addCityBox(architectureGroup, 0, baseY + 12, -40, 22, 2, 5, whiteStone);
+      }
+    }
+
+    // Build Interior Room & Desk Scene
+    function buildCityRoomScene() {
+      cityGroup = new THREE.Group();
+      cityGroup.visible = false;
+      architectureGroup = new THREE.Group();
+      cityGroup.add(architectureGroup);
+
+      // Desk Table Mesh
+      const tableGeom = new THREE.BoxGeometry(140, 6, 80);
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+      deskMesh = new THREE.Mesh(tableGeom, tableMat);
+      deskMesh.position.set(0, -20, 0);
+      cityGroup.add(deskMesh);
+
+      // Digital Desk Clock Chassis
+      const clockBodyGeom = new THREE.BoxGeometry(60, 30, 15);
+      const clockBodyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 });
+      const clockBody = new THREE.Mesh(clockBodyGeom, clockBodyMat);
+      clockBody.position.set(0, -2, 0);
+      cityGroup.add(clockBody);
+
+      // LED Clock Display Screen
+      const screenGeom = new THREE.PlaneGeometry(54, 24);
+      const screenMat = new THREE.MeshBasicMaterial({ map: createClockCanvasTexture() });
+      clockMesh = new THREE.Mesh(screenGeom, screenMat);
+      clockMesh.position.set(0, -2, 7.6);
+      cityGroup.add(clockMesh);
+
+      scene.add(cityGroup);
+    }
+
+    function init() {
+      const canvas = document.getElementById('webgl-canvas');
+      
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x030712);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 0, 260);
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.outputEncoding = THREE.sRGBEncoding;
+
+      // Directional sunlight gives the globe a distinct day/night edge.
+      ambientLight = new THREE.AmbientLight(0x899bb5, 0.42);
+      scene.add(ambientLight);
+
+      dirLight = new THREE.DirectionalLight(0xfff1d6, 1.8);
+      dirLight.position.set(-180, 90, 150);
+      scene.add(dirLight);
+
+      createStarField();
+
+      // Globe Group
+      globeGroup = new THREE.Group();
+      scene.add(globeGroup);
+
+      const geometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
+      const material = new THREE.MeshPhongMaterial({
+        map: loadEarthTexture('textures/earth_atmos_2048.jpg', true),
+        normalMap: loadEarthTexture('textures/earth_normal_2048.jpg'),
+        normalScale: new THREE.Vector2(0.7, 0.7),
+        specularMap: loadEarthTexture('textures/earth_specular_2048.jpg'),
+        specular: new THREE.Color(0x526a80),
+        shininess: 14
+      });
+      const globeMesh = new THREE.Mesh(geometry, material);
+      globeGroup.add(globeMesh);
+
+      const cloudMaterial = new THREE.MeshPhongMaterial({
+        map: loadEarthTexture('textures/earth_clouds_1024.png', true),
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false
+      });
+      cloudMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(GLOBE_RADIUS + 0.65, 64, 64),
+        cloudMaterial
+      );
+      globeGroup.add(cloudMesh);
+
+      // Add a soft blue atmospheric rim beyond the cloud layer.
+      const atmosphereMaterial = new THREE.ShaderMaterial({
+        uniforms: { glowColor: { value: new THREE.Color(0x4ab7ff) } },
+        vertexShader: `
+          varying vec3 vNormal;
+          varying vec3 vViewPosition;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+            vViewPosition = -viewPosition.xyz;
+            gl_Position = projectionMatrix * viewPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 glowColor;
+          varying vec3 vNormal;
+          varying vec3 vViewPosition;
+          void main() {
+            float rim = pow(1.0 - max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0), 2.4);
+            gl_FragColor = vec4(glowColor, rim * 0.52);
+          }
+        `,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false
+      });
+      globeGroup.add(new THREE.Mesh(
+        new THREE.SphereGeometry(GLOBE_RADIUS + 2.8, 64, 64),
+        atmosphereMaterial
+      ));
+
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff543f });
+      locations.forEach((loc) => {
+        const latitude = THREE.Math.degToRad(loc.lat);
+        const longitude = THREE.Math.degToRad(loc.lng);
+        const marker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.72, 12, 12),
+          markerMaterial
+        );
+        marker.position.set(
+          (GLOBE_RADIUS + 0.55) * Math.cos(latitude) * Math.cos(longitude),
+          (GLOBE_RADIUS + 0.55) * Math.sin(latitude),
+          (GLOBE_RADIUS + 0.55) * Math.cos(latitude) * Math.sin(longitude)
+        );
+        globeGroup.add(marker);
+      });
+
+      // Build Desk Scene
+      buildCityRoomScene();
+
+      // Populate Selector
+      const select = document.getElementById('country-select');
+      locations.forEach((loc, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.textContent = loc.name;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', (e) => {
+        const loc = locations[e.target.value];
+        selectLocation(loc);
+      });
+
+      // Mouse Orbit Controls & First Person Pan
+      canvas.addEventListener('mousedown', (e) => {
+        if (currentMode !== 'GLOBE') return;
+        isDragging = true;
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (currentMode === 'WALKING') {
+          mouseLook.x = ((e.clientX / window.innerWidth) - 0.5) * 0.4;
+          mouseLook.y = ((e.clientY / window.innerHeight) - 0.5) * -0.4;
+          return;
+        }
+
+        if (!isDragging || currentMode !== 'GLOBE') return;
+        const deltaMove = {
+          x: e.clientX - previousMousePosition.x,
+          y: e.clientY - previousMousePosition.y
+        };
+
+        globeGroup.rotation.y += deltaMove.x * 0.005;
+        globeGroup.rotation.x += deltaMove.y * 0.005;
+
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+      });
+
+      window.addEventListener('mouseup', () => { isDragging = false; });
+
+      // ESC Key Listener to Return to Globe
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && currentMode !== 'GLOBE') {
+          returnToGlobe();
+        }
+      });
+
+      document.getElementById('back-btn').addEventListener('click', () => {
+        if (currentMode !== 'GLOBE') returnToGlobe();
+      });
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (currentMode === 'GLOBE' && !isDragging) {
+        globeGroup.rotation.y += 0.0008;
+        if (cloudMesh) cloudMesh.rotation.y += 0.00012;
+      } else if (currentMode === 'WALKING') {
+        // Apply slight camera tilt during walking up to desk
+        camera.rotation.y = mouseLook.x;
+        camera.rotation.x = mouseLook.y;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Select Location & Trigger Camera Journey
+    function selectLocation(loc) {
+      const latRad = loc.lat * (Math.PI / 180);
+      const lngRad = loc.lng * (Math.PI / 180);
+
+      const targetRotationX = latRad;
+      const targetRotationY = -lngRad - (Math.PI / 2);
+
+      // Phase 1: Fly camera to country coordinates on 3D Earth
+      gsap.to(globeGroup.rotation, {
+        x: targetRotationX,
+        y: targetRotationY,
+        duration: 1.5,
+        ease: "power2.inOut"
+      });
+
+      gsap.to(camera.position, {
+        z: 110,
+        duration: 1.5,
+        ease: "power2.in",
+        onComplete: () => {
+          // Phase 2: Fade to black transition overlay
+          triggerFadeToBlack(() => {
+            switchToCityWalkingMode(loc);
+          });
+        }
+      });
+    }
+
+    function triggerFadeToBlack(callback) {
+      const overlay = document.getElementById('fade-overlay');
+      overlay.classList.add('active');
+      setTimeout(() => {
+        if (callback) callback();
+        setTimeout(() => {
+          overlay.classList.remove('active');
+        }, 300);
+      }, 800);
+    }
+
+    // Switch to Room Mode & Perform First-Person Approach Walk
+    function switchToCityWalkingMode(loc) {
+      currentMode = 'WALKING';
+      globeGroup.visible = false;
+      starField.visible = false;
+      cityGroup.visible = true;
+
+      // Apply Location Dynamic Aesthetic Theme
+      scene.background.setHex(loc.bg);
+      dirLight.color.setHex(loc.light);
+      deskMesh.material.color.setHex(loc.desk);
+      buildCityArchitecture(loc);
+
+      // Spawn camera at room entrance ($Z = 160$)
+      camera.position.set(CITY_CAMERA_X, 0, 160);
+      camera.rotation.set(0, 0, 0);
+
+      updateTimeHUD(loc);
+
+      // Keep the clock comfortably framed while approaching the city skyline.
+      gsap.to(camera.position, {
+        z: CITY_CAMERA_Z,
+        y: -2,
+        duration: 3,
+        ease: "power1.inOut",
+        onComplete: () => {
+          // Lock camera onto clock face
+          currentMode = 'LOCKED';
+          gsap.to(camera.rotation, { x: 0, y: 0, z: 0, duration: 0.5 });
+          gsap.to(camera.position, { x: CITY_CAMERA_X, y: -2, z: CITY_CAMERA_Z, duration: 0.5 });
+        }
+      });
+    }
+
+    // Return Back to Globe Orbit
+    function returnToGlobe() {
+      triggerFadeToBlack(() => {
+        currentMode = 'GLOBE';
+        cityGroup.visible = false;
+        globeGroup.visible = true;
+        starField.visible = true;
+        scene.background.setHex(0x030712);
+        dirLight.color.setHex(0x38bdf8);
+
+        camera.position.set(0, 0, 260);
+        camera.rotation.set(0, 0, 0);
+
+        document.getElementById('info-card').classList.add('hidden');
+        document.getElementById('country-select').value = "";
+      });
+    }
+
+    // Live Local Time Updater
+    function updateTimeHUD(loc) {
+      const infoCard = document.getElementById('info-card');
+      const locationName = document.getElementById('location-name');
+      const localTime = document.getElementById('local-time');
+      const timezoneText = document.getElementById('timezone-text');
+      const coordsText = document.getElementById('coords-text');
+      const themeText = document.getElementById('theme-text');
+      const architectureText = document.getElementById('architecture-text');
+
+      infoCard.classList.remove('hidden');
+      locationName.textContent = loc.name;
+      timezoneText.textContent = loc.timezone;
+      coordsText.textContent = `${loc.lat.toFixed(2)}°, ${loc.lng.toFixed(2)}°`;
+      themeText.textContent = loc.themeName;
+      architectureText.textContent = loc.architecture;
+
+      if (activeInterval) clearInterval(activeInterval);
+
+      function tick() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { timeZone: loc.timezone });
+        localTime.textContent = timeString;
+        updateClockDisplay(timeString);
+      }
+
+      tick();
+      activeInterval = setInterval(tick, 1000);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
