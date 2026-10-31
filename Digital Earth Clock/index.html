@@ -1,3 +1,6 @@
+// Hello this is my project 
+// AI usage is only used for the textures
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +8,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Digital World Clock</title>
   
-  <!-- Three.js & GSAP -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 
@@ -39,7 +41,6 @@
       cursor: grabbing;
     }
 
-    /* Transition Overlay */
     #fade-overlay {
       position: fixed;
       top: 0;
@@ -57,7 +58,6 @@
       opacity: 1;
     }
 
-    /* UI HUD Elements */
     .hud-container {
       position: relative;
       z-index: 10;
@@ -217,7 +217,6 @@
 </head>
 <body>
 
-  <!-- Transition Overlay -->
   <div id="fade-overlay"></div>
 
   <!-- Three.js Canvas -->
@@ -226,7 +225,7 @@
   <!-- HUD Interface -->
   <div class="hud-container">
     <header class="glass-card header-card">
-      <h1>🌍 DIGITAL WORLD CLOCK</h1>
+      <h1>DIGITAL WORLD CLOCK</h1>
       <p>Explore a textured 3D Earth and check local time anywhere.</p>
     </header>
 
@@ -242,18 +241,17 @@
       <div id="local-time" class="time-display">00:00:00</div>
       <div class="details">
         <p><strong>Timezone:</strong> <span id="timezone-text">-</span></p>
-        <p><strong>Coordinates:</strong> <span id="coords-text">-</span></p>
+        <p><strong>Coordinate:</strong> <span id="coords-text">-</span></p>
         <p><strong>Theme:</strong> <span id="theme-text">-</span></p>
         <p><strong>Architecture:</strong> <span id="architecture-text">-</span></p>
       </div>
-      <div class="esc-hint">⌨️ Press <strong>ESC</strong> to return to orbit</div>
+      <div class="esc-hint">Press <strong>ESC</strong> to return to orbit</div>
       <button class="back-btn" id="back-btn">Return to Globe Orbit</button>
     </div>
   </div>
   <div class="globe-hint">DRAG TO ROTATE</div>
 
   <script>
-    // Global Country Database with Custom Atmospheric Themes
     const locations = [
       { name: "Turkey (Istanbul)", lat: 41.0082, lng: 28.9784, timezone: "Europe/Istanbul", themeName: "Ottoman Sunburst", architecture: "Ottoman domes and minarets", cityStyle: "istanbul", bg: 0x2d1206, light: 0xf97316, desk: 0x451a03 },
       { name: "Turkey (Ankara)", lat: 39.9334, lng: 32.8597, timezone: "Europe/Istanbul", themeName: "Anatolian Warmth", architecture: "Modern civic towers", cityStyle: "ankara", bg: 0x3b1106, light: 0xfb923c, desk: 0x581c87 },
@@ -272,7 +270,7 @@
     let deskMesh, ambientLight, dirLight, architectureGroup;
     let clockTextCanvas, clockTexture, clockMesh;
     
-    let currentMode = 'GLOBE'; // 'GLOBE' | 'WALKING' | 'LOCKED'
+    let currentMode = 'GLOBE';
     let activeInterval = null;
 
     let isDragging = false;
@@ -319,7 +317,7 @@
       scene.add(starField);
     }
 
-    // Dynamic LED Clock Screen Texture Generator
+  
     function createClockCanvasTexture() {
       clockTextCanvas = document.createElement('canvas');
       clockTextCanvas.width = 512;
@@ -589,28 +587,24 @@
       }
     }
 
-    // Build Interior Room & Desk Scene
     function buildCityRoomScene() {
       cityGroup = new THREE.Group();
       cityGroup.visible = false;
       architectureGroup = new THREE.Group();
       cityGroup.add(architectureGroup);
 
-      // Desk Table Mesh
       const tableGeom = new THREE.BoxGeometry(140, 6, 80);
       const tableMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
       deskMesh = new THREE.Mesh(tableGeom, tableMat);
       deskMesh.position.set(0, -20, 0);
       cityGroup.add(deskMesh);
 
-      // Digital Desk Clock Chassis
       const clockBodyGeom = new THREE.BoxGeometry(60, 30, 15);
       const clockBodyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 });
       const clockBody = new THREE.Mesh(clockBodyGeom, clockBodyMat);
       clockBody.position.set(0, -2, 0);
       cityGroup.add(clockBody);
 
-      // LED Clock Display Screen
       const screenGeom = new THREE.PlaneGeometry(54, 24);
       const screenMat = new THREE.MeshBasicMaterial({ map: createClockCanvasTexture() });
       clockMesh = new THREE.Mesh(screenGeom, screenMat);
@@ -634,7 +628,8 @@
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.outputEncoding = THREE.sRGBEncoding;
 
-      // Directional sunlight gives the globe a distinct day/night edge.
+      async (params) => {
+      }
       ambientLight = new THREE.AmbientLight(0x899bb5, 0.42);
       scene.add(ambientLight);
 
@@ -644,7 +639,6 @@
 
       createStarField();
 
-      // Globe Group
       globeGroup = new THREE.Group();
       scene.add(globeGroup);
 
@@ -672,7 +666,6 @@
       );
       globeGroup.add(cloudMesh);
 
-      // Add a soft blue atmospheric rim beyond the cloud layer.
       const atmosphereMaterial = new THREE.ShaderMaterial({
         uniforms: { glowColor: { value: new THREE.Color(0x4ab7ff) } },
         vertexShader: `
@@ -720,10 +713,8 @@
         globeGroup.add(marker);
       });
 
-      // Build Desk Scene
       buildCityRoomScene();
 
-      // Populate Selector
       const select = document.getElementById('country-select');
       locations.forEach((loc, index) => {
         const opt = document.createElement('option');
@@ -737,7 +728,6 @@
         selectLocation(loc);
       });
 
-      // Mouse Orbit Controls & First Person Pan
       canvas.addEventListener('mousedown', (e) => {
         if (currentMode !== 'GLOBE') return;
         isDragging = true;
@@ -765,7 +755,6 @@
 
       window.addEventListener('mouseup', () => { isDragging = false; });
 
-      // ESC Key Listener to Return to Globe
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && currentMode !== 'GLOBE') {
           returnToGlobe();
@@ -787,7 +776,6 @@
         globeGroup.rotation.y += 0.0008;
         if (cloudMesh) cloudMesh.rotation.y += 0.00012;
       } else if (currentMode === 'WALKING') {
-        // Apply slight camera tilt during walking up to desk
         camera.rotation.y = mouseLook.x;
         camera.rotation.x = mouseLook.y;
       }
@@ -801,7 +789,6 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // Select Location & Trigger Camera Journey
     function selectLocation(loc) {
       const latRad = loc.lat * (Math.PI / 180);
       const lngRad = loc.lng * (Math.PI / 180);
@@ -809,7 +796,6 @@
       const targetRotationX = latRad;
       const targetRotationY = -lngRad - (Math.PI / 2);
 
-      // Phase 1: Fly camera to country coordinates on 3D Earth
       gsap.to(globeGroup.rotation, {
         x: targetRotationX,
         y: targetRotationY,
@@ -822,7 +808,6 @@
         duration: 1.5,
         ease: "power2.in",
         onComplete: () => {
-          // Phase 2: Fade to black transition overlay
           triggerFadeToBlack(() => {
             switchToCityWalkingMode(loc);
           });
@@ -841,33 +826,28 @@
       }, 800);
     }
 
-    // Switch to Room Mode & Perform First-Person Approach Walk
     function switchToCityWalkingMode(loc) {
       currentMode = 'WALKING';
       globeGroup.visible = false;
       starField.visible = false;
       cityGroup.visible = true;
 
-      // Apply Location Dynamic Aesthetic Theme
       scene.background.setHex(loc.bg);
       dirLight.color.setHex(loc.light);
       deskMesh.material.color.setHex(loc.desk);
       buildCityArchitecture(loc);
 
-      // Spawn camera at room entrance ($Z = 160$)
       camera.position.set(CITY_CAMERA_X, 0, 160);
       camera.rotation.set(0, 0, 0);
 
       updateTimeHUD(loc);
 
-      // Keep the clock comfortably framed while approaching the city skyline.
       gsap.to(camera.position, {
         z: CITY_CAMERA_Z,
         y: -2,
         duration: 3,
         ease: "power1.inOut",
         onComplete: () => {
-          // Lock camera onto clock face
           currentMode = 'LOCKED';
           gsap.to(camera.rotation, { x: 0, y: 0, z: 0, duration: 0.5 });
           gsap.to(camera.position, { x: CITY_CAMERA_X, y: -2, z: CITY_CAMERA_Z, duration: 0.5 });
@@ -875,7 +855,6 @@
       });
     }
 
-    // Return Back to Globe Orbit
     function returnToGlobe() {
       triggerFadeToBlack(() => {
         currentMode = 'GLOBE';
@@ -893,7 +872,6 @@
       });
     }
 
-    // Live Local Time Updater
     function updateTimeHUD(loc) {
       const infoCard = document.getElementById('info-card');
       const locationName = document.getElementById('location-name');
